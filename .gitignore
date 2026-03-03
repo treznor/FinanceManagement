@@ -12,3 +12,4 @@ transactions/
 
 # Environment files
 .env
+download.tmp
