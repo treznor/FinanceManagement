@@ -82,3 +82,37 @@ CREATE TABLE IF NOT EXISTS ingest.chase3770 (
     check_no_slip_no varchar(100),
     filler varchar(20)
 );
+
+DROP TABLE IF EXISTS curated.transactions;
+CREATE TABLE IF NOT EXISTS curated.transactions (
+    account varchar(50) NOT NULL,
+    transaction_number integer NOT NULL,
+    transaction_date DATE NOT NULL,
+    posting_date DATE,
+    payee varchar(100),
+    transaction_description varchar(100),
+    source_category varchar(100),
+    budget_category varchar(100),
+    source_transaction_type varchar(100),
+    source_memo varchar(100),
+    check_number integer,
+    amount numeric(10, 2),
+    balance_at_transaction numeric(10,2),
+    transaction_status varchar(10),
+    PRIMARY KEY (account, transaction_number)
+);
+
+DROP TABLE IF EXISTS curated.accounts;
+CREATE TABLE IF NOT EXISTS curated.accounts (
+    account_name varchar(50) PRIMARY KEY,
+    account_institution varchar(50),
+    account_type varchar(50),
+    account_processing_prefix varchar(50),
+    account_load_type varchar(50)
+);
+
+INSERT INTO curated.accounts values ('Chase Sapphire','Chase','Credit Card','Chase7226', 'Chase CC');
+INSERT INTO curated.accounts values ('Chase Marriott','Chase','Credit Card','Chase5074', 'Chase CC');
+INSERT INTO curated.accounts values ('Chase Hyatt','Chase','Credit Card','Chase2085', 'Chase CC');
+INSERT INTO curated.accounts values ('Chase Checking','Chase','Checking','Chase3770', 'Chase Banking');
+INSERT INTO curated.accounts values ('Chase Emergency','Chase','Savings','Chase3894', 'Chase Banking');

@@ -48,9 +48,10 @@ def querySelectOne(query):
 #--------------------------------------------------------------------------------------------------
 
 def querySelectMany(query):
+    output = []
     with psycopg.connect("dbname=finance user=treznor") as conn:
         with conn.cursor() as cur:
             cur.execute(query)
             for result in cur.fetchall():
-                output = result
+                output.append(result)
     return output
