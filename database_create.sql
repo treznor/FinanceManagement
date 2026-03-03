@@ -4,7 +4,7 @@ CREATE DATABASE IF NOT EXISTS transform;
 CREATE DATABASE IF NOT EXISTS stage;
 
 DROP TABLE stage.account_processing;
-CREATE TABLE IF NOT EXISTS stage.account_processing (
+CREATE TABLE IF NOT EXISTS account_processing (
     suffix varchar(50) PRIMARY KEY,
     bank varchar(50) NOT NULL,
     account_name varchar(50) NOT NULL,
