@@ -1,82 +1,76 @@
 import os
+import sys
 from os.path import isfile, join
-import psycopg
 import argparse
 import csv
 import time
+from query import *
 
-start_time = time.time()
-
-file_name = 'process_chase_cc.py'
-
-parser = argparse.ArgumentParser(
-    prog = 'process_chase_cc',
+def filename_creation():
+    # create argument parser to allow file names to be passed in
+    parser = argparse.ArgumentParser(
+    prog = 'process_transactions',
     description = 'Process transactions'
-)
-
-parser.add_argument('filename')
-
-args = parser.parse_args()
-
-file_split = args.filename.split("/")
-dir_path = file_split[0]
-file_prefix = file_split[1][:9]
-processed_dir_path = dir_path + '/processed/' + file_split[1]
-
-query = f"select columns from stage.account_processing where prefix = '{file_prefix}'"
-with psycopg.connect("dbname=finance user=treznor") as conn:
-    with conn.cursor() as cur:
-        cur.execute(query)
-
-        for result in cur.fetchone():
-            columns = result
-
-if columns == '':
-    raise Exception("File type not found or columns not defined for file type")
-
-file_records = 0
-
-# moving away from split as there are commas in the data
-with open(args.filename, 'r', encoding = 'utf-8') as f:
-    next(f)
-    reader = csv.reader(f, delimiter = ',')
-    
-    data_to_insert = []
-    for line in reader:
-        if line == '':
-            continue
-        line.insert(0, file_records + 1)
-        data_to_insert.append(tuple(line))
-        file_records += 1
+    )
+    parser.add_argument('filename')
+    args = parser.parse_args()
+    main(args.filename)
 
 
-copy_query = f"COPY ingest.{file_prefix} ({columns}) from STDIN"
-delete_query = f"DELETE from ingest.{file_prefix}"
+def main(ingest_file):
+    # starting timer
+    start_time = time.time()
 
-with psycopg.connect("dbname=finance user=treznor") as conn:
-    with conn.cursor() as cur:
-        cur.execute(delete_query)
-    with conn.cursor() as cur:
-        with cur.copy(copy_query) as copy:
-            for record in data_to_insert:
-                copy.write_row(record)
-    conn.commit()
+    # create file paths based on file name passed in
+    file_split = ingest_file.split("/")
+    dir_path = file_split[0]
+    file_prefix = file_split[1][:9]
+    processed_dir_path = dir_path + '/processed/' + file_split[1]
 
-query = f"select count(*) from ingest.{file_prefix}"
+    # get the ingestion columns for the file prefix
+    query = f"select columns from stage.account_processing where prefix = '{file_prefix}'"
+    columns = querySelectOne(query)
+    if columns == '':
+        raise Exception("File type not found or columns not defined for file type")
 
-with psycopg.connect("dbname=finance user=treznor") as conn:
-    with conn.cursor() as cur:
-        cur.execute(query)
+    # read data in from the file to be loaded
+    file_records = 0
 
-        for result in cur.fetchone():
-            loaded_records = result
+    with open(ingest_file, 'r', encoding = 'utf-8') as f:
+        next(f)
+        reader = csv.reader(f, delimiter = ',')
+        data_to_insert = []
+        for line in reader:
+            if line == '':
+                continue
+            line.insert(0, file_records + 1)
+            data_to_insert.append(tuple(line))
+            file_records += 1
 
-if not loaded_records == file_records:
-    raise Exception(f"Number of records are different between loaded file {args.filename} ({file_records} records) and ingest table ingest.{file_prefix} ({loaded_records} records)")
+    # load data from file into the ingest table
+    copy_query = f"COPY ingest.{file_prefix} ({columns}) from STDIN"
+    delete_query = f"DELETE from ingest.{file_prefix}"
 
-os.rename(args.filename, processed_dir_path)
-end_time = time.time()
-elapsed_time = round(end_time - start_time, 3)
-records_per_second = round(file_records / elapsed_time)
+    queryWrite(copy_query, data_to_insert, delete_query)
 
-print(f"Processed {args.filename}. {file_records} records ingested in {elapsed_time} seconds, {records_per_second} records per second")
+    # count the number of records loaded
+    query = f"select count(*) from ingest.{file_prefix}"
+    loaded_records = querySelectOne(query)
+
+    # if the number of records in the file is different than the number of records loaded, there were missed records somewhere
+    if not loaded_records == file_records:
+        raise Exception(f"Number of records are different between loaded file {args.filename} ({file_records} records) and ingest table ingest.{file_prefix} ({loaded_records} records)")
+
+    # move the file to the processed area
+    os.rename(ingest_file, processed_dir_path)
+
+    # determine the elapsed time and records per second
+    end_time = time.time()
+    elapsed_time = round(end_time - start_time, 3)
+    records_per_second = round(file_records / elapsed_time)
+
+    # output a summary
+    print(f"Processed {ingest_file}. {file_records} records ingested in {elapsed_time} seconds, {records_per_second} records per second")
+
+if __name__ == "__main__":
+    filename_creation()
